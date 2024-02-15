@@ -9,11 +9,24 @@
 #define CURRENT_LEVEL				(*(int*)0x0021de10)
 #define CURRENT_XP					(*(int*)0x00171B48)
 #define WEAPON_KILLS				(0x0020b53c)
+#define WEAPON_EQUIPSLOT			((int*)0x0020c690)
 
 
 int CurrentWeaponKills[16];
 int firstPass = 0;
 int oldXP = 0;
+
+void runConstants(Player *player)
+{
+	// Give player 200 ammo always
+	player->GadgetBox->Gadgets[player->WeaponHeldId].Ammo = 200;
+	// hide slots 2 and 3
+	int * quickselect = WEAPON_EQUIPSLOT;
+	quickselect[1] = WEAPON_ID_EMPTY;
+	quickselect[2] = WEAPON_ID_EMPTY;
+	// don't let player access quick select.
+	player->timers.allowQuickSelect = 0xffff;
+}
 
 void giveWeapons(Player *player)
 {
@@ -39,6 +52,7 @@ int getRandomNum(int seed)
 {
 	int a = (seed % 9);
 	int id;
+	// Set random number random weapon ID.
 	switch (a) {
 		case 0: id = 4; break;
 		case 1: id = 3; break;
@@ -46,22 +60,21 @@ int getRandomNum(int seed)
 		case 3: id = 7; break;
 		case 4: id = 5; break;
 		case 5: id = 9; break;
-		case 6: id = 1; break;
+		case 6: id = 15; break;
 		case 7: id = 6; break;
 		case 8: id = 8; break;
 		case 9: id = 10; break;
 	}
+	// return weapon ID
 	return id;
 }
 
-int checkWeaponKill(Player *player)
+void checkWeaponKill(Player *player)
 {
-	// Get current held weapon
-	int weapon = player->WeaponHeldId;
-	// if Weapon equals: Nothing, Wrench, Grind Cable, EMP, Hacker Ray or Swingshot return
-	if (weapon == 0 || weapon == 1 || weapon == 11 || weapon == 12 || weapon == 13 || weapon == 14)
-		return;
-	
+	// Get current held weapon from quick select slot 0
+	int * quickselect = WEAPON_EQUIPSLOT;
+	int weapon = quickselect[0];
+
 	// Weapon kill list starts with dual vieprs, which is ID 2.
 	int multiply = weapon - 2;
 	int kills = *(int*)(WEAPON_KILLS + (multiply * 4));
@@ -75,7 +88,9 @@ int checkWeaponKill(Player *player)
 	CurrentWeaponKills[multiply] = kills;
 
 	// Cycle to next random weapon
-	player->ChangeWeaponHeldId = getRandomNum(player->timers.timeAlive);
+	int getNewWeapon = getRandomNum(player->timers.timeAlive);
+	quickselect[0] = getNewWeapon;
+	player->ChangeWeaponHeldId = getNewWeapon;
 }
 
 int main(void)
@@ -91,10 +106,8 @@ int main(void)
 	Player* player = (Player*)((u32)PlayerPointer - 0x2FEC);
 	PadButtonStatus* pad = playerGetPad(player);
 
-	// Constantly set weapon ammo to 200
-	player->GadgetBox->Gadgets[player->WeaponHeldId].Ammo = 200;
-
-	player->timers.allowQuickSelect = 0x7fff;
+	// Do Constants
+	runConstants(player);
 
 	// if FirstPass is false, set all current weapon kills.
 	if (!firstPass) {
